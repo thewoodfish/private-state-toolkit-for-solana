@@ -1,0 +1,29 @@
+{
+  "name": "private-state-toolkit-for-solana",
+  "version": "1.0.0",
+  "description": "Private State Toolkit is Solana infrastructure for **private but verifiable state** without zk. It stores only a cryptographic commitment on-chain while the actual application state stays encrypted off-chain. This is a developer primitive other programs can build on, not a private payments app.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thewoodfish/private-state-toolkit-for-solana.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/thewoodfish/private-state-toolkit-for-solana/issues"
+  },
+  "homepage": "https://github.com/thewoodfish/private-state-toolkit-for-solana#readme",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
