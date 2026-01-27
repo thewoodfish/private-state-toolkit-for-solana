@@ -122,10 +122,41 @@ This avoids “sleep and retry” hacks and works reliably under websocket lag.
 - Real‑time updates via WebSocket subscriptions
 - Observer can verify updates but **cannot decrypt**
 
-### Install deps
+### Setup and Installation
+
+### Prerequisites
+- Rust 1.75+
+- Solana CLI 1.18+
+- Anchor CLI 0.30.1
+- Node.js 18+
+
+### Install dependencies
 ```bash
-npm i @coral-xyz/anchor @solana/web3.js
-npm i -D ts-node typescript
+npm install
+```
+
+### Build programs
+```bash
+anchor build
+```
+
+### Deploy to devnet
+```bash
+# Configure Solana CLI for devnet
+solana config set --url https://api.devnet.solana.com
+
+# Airdrop SOL for deployment
+solana airdrop 2
+
+# Deploy both programs
+anchor deploy
+
+# Note the program IDs and update Anchor.toml if different
+```
+
+### Run tests
+```bash
+anchor test
 ```
 
 ### Run (devnet)

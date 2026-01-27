@@ -4,7 +4,9 @@
   "description": "Private State Toolkit is Solana infrastructure for **private but verifiable state** without zk. It stores only a cryptographic commitment on-chain while the actual application state stays encrypted off-chain. This is a developer primitive other programs can build on, not a private payments app.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "anchor test",
+    "build": "anchor build",
+    "deploy": "anchor deploy"
   },
   "repository": {
     "type": "git",
@@ -19,10 +21,14 @@
   },
   "homepage": "https://github.com/thewoodfish/private-state-toolkit-for-solana#readme",
   "dependencies": {
-    "@coral-xyz/anchor": "^0.32.1",
+    "@coral-xyz/anchor": "^0.30.1",
     "@solana/web3.js": "^1.98.4"
   },
   "devDependencies": {
+    "@types/chai": "^4.3.5",
+    "@types/mocha": "^10.0.1",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
