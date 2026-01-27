@@ -1,218 +1,235 @@
 # Private State Toolkit (PST)
 
-Private State Toolkit (PST) is **privacy infrastructure for Solana programs**.  
-It enables **private but verifiable application state without zero-knowledge proofs (zk)** by storing **only cryptographic commitments on-chain** and keeping the **encrypted state off-chain**.
-
-> This is **not** a private payments app.  
-> PST is a **reusable primitive** for Solana developers who want integrity without public data leakage.
+Private State Toolkit is **privacy infrastructure for Solana programs**. It enables **private but verifiable application state without zk** by storing only cryptographic commitments on-chain and keeping encrypted state off-chain. This is **not** a private payments app — it’s a reusable primitive for builders.
 
 ---
 
 ## Why this exists
 
-Many Solana applications need **correctness and ordering guarantees** without exposing sensitive state:
+Many Solana apps need **integrity** without **public data leakage**:
+- Games with hidden state
+- Identity attestations or claims
+- App configuration or secrets
+- Collaborative apps with private state
 
-- Games with hidden scores or strategies  
-- Reputation or credit-style systems  
-- DAO voting weights or configuration  
-- Collaborative apps with private shared state  
-
-Current options force developers into bad tradeoffs:
-
-| Option | Problem |
-|------|--------|
-| Store state on-chain | Fully public forever |
-| Store state off-chain | No verifiability |
-| Use zk | Heavy complexity, high risk, poor hackathon ergonomics |
-
-**PST introduces a fourth option: private but verifiable state.**
+PST gives you:
+- **On-chain verifiability** (hash commitment + nonce)
+- **Off-chain privacy** (encrypted payload stays with the app/user)
+- **Minimal on-chain footprint** (cheap, indexer‑resistant)
 
 ---
 
 ## Core idea
 
-1. The application encrypts its state locally (AES-256-GCM).
-2. It computes a commitment:  
-   `commitment = sha256(nonce || encrypted_payload)`
-3. The on-chain account stores only:
+1. App encrypts state locally (AES‑256‑GCM).
+2. It computes `commitment = sha256(nonce || encrypted_payload)`.
+3. On-chain account stores only:
    - `authority`
    - `commitment`
    - `nonce`
-4. An update is accepted only if:
-   - `old_commitment` matches the stored value
-   - `nonce` increments by exactly 1
-   - the authority signs
+   - `policy`
+4. Update is valid only if:
+   - `old_commitment` matches
+   - `nonce` rule obeys policy
 
-The program **never sees plaintext state**.  
-Anyone can verify that updates are **authorized, ordered, and consistent**.
-
-> **Important clarification:**  
-> The program does *not* verify knowledge of the plaintext or ciphertext.  
-> It enforces **authorized, monotonic transitions between commitments**.
+Everyone can verify ordering and consistency — **no one sees the payload** without the key.
 
 ---
 
-## What’s on-chain
+## Upgrade A — Composability via CPI (assert_state)
 
-**Program:** `private_state_toolkit`
+PST now exposes a **CPI‑friendly validation hook**:
 
-### Account
 ```rust
-#[account]
-pub struct PrivateState {
-    pub authority: Pubkey,
-    pub commitment: [u8; 32],
-    pub nonce: u64,
+pub fn assert_state(
+  ctx: Context<AssertState>,
+  expected_commitment: [u8; 32],
+  expected_nonce: u64
+) -> Result<()>
+```
+
+- **Read‑only** (no mutation)
+- **Deterministic + cheap**
+- Works from **any program** via CPI
+
+### CPI example (from pst_consumer)
+```rust
+let cpi_accounts = private_state_toolkit::cpi::accounts::AssertState {
+    private_state: ctx.accounts.private_state.to_account_info(),
+};
+let cpi_ctx = CpiContext::new(
+    ctx.accounts.pst_program.to_account_info(),
+    cpi_accounts,
+);
+private_state_toolkit::cpi::assert_state(
+    cpi_ctx,
+    expected_commitment,
+    expected_nonce,
+)?;
+```
+
+This lets any program gate actions on **fresh private state** without decrypting.
+
+---
+
+## Upgrade B — Update policies
+
+PST supports two minimal, real update policies:
+
+```rust
+pub enum UpdatePolicy {
+  StrictSequential = 0,  // next_nonce == stored_nonce + 1
+  AllowSkips = 1,        // next_nonce > stored_nonce
 }
 ```
 
-### Instructions
-- `initialize(initial_commitment)`
-- `update(old_commitment, new_commitment, next_nonce)`
-- `transfer_authority(new_authority)`
+Why it matters:
+- **StrictSequential** for deterministic apps (games, turn‑based state)
+- **AllowSkips** for async/offline workflows (batched or delayed updates)
 
-### Constraints
-- No zk
-- No PDAs
-- No external programs
-- Minimal account size (8 + 32 + 32 + 8 bytes)
+Policies are enforced on-chain during `update` and can be changed via `set_policy`.
 
 ---
 
-## Local / Chain Sync Protocol (Two‑Phase)
+## Local/Chain Sync Protocol (2‑phase)
 
-PST includes a **robust local coordination protocol** to avoid race conditions, watcher lag, and brittle “sleep-and-retry” hacks.
+PST avoids race conditions with a two‑phase local protocol:
 
-### Files
-- `state/state.committed.json` — last confirmed local state  
-- `state/state.pending.json` — staged update awaiting confirmation  
-- `demo-key.json` — demo encryption key  
+Files:
+- `state/state.committed.json` = last confirmed state (local source of truth)
+- `state/state.pending.json` = staged update awaiting confirmation
+- `demo-key.json` = demo encryption key
 
-### Flow
+Flow:
 1. `inc.ts` writes `state.pending.json` **before** submitting the transaction.
-2. After the transaction is **confirmed**, it atomically promotes the update to `state.committed.json`.
-3. `watch.ts` and `observer.ts` treat the **on-chain nonce + commitment as the source of truth** and emit sync status:
+2. After confirmation, it **atomically promotes** to `state.committed.json`.
+3. `watch.ts` treats chain nonce/commitment as source of truth and emits status:
+   - `IN_SYNC` — chain == committed
+   - `PENDING` — pending exists, chain == committed
+   - `LANDED_PENDING` — chain == pending (auto‑promote)
+   - `STALE` — chain ahead of committed
+   - `DIVERGED` — local ahead of chain
 
-| Status | Meaning |
-|------|--------|
-| `IN_SYNC` | Chain matches committed |
-| `PENDING` | Pending exists, chain unchanged |
-| `LANDED_PENDING` | Chain matches pending (auto-promote) |
-| `STALE` | Chain ahead of local |
-| `DIVERGED` | Local ahead of chain (should not occur) |
-
-This keeps local state correct even under WebSocket lag or transaction failure.
+This avoids “sleep and retry” hacks and works reliably under websocket lag.
 
 ---
 
-## Demo: Private Counter
+## Demo: Private Counter (mandatory)
 
-This demo proves the primitive works end-to-end.
-
-### What it demonstrates
+**What it proves**
 - Counter value is **encrypted locally**
-- On-chain stores **only commitment + nonce**
-- Real-time updates via WebSocket subscriptions
-- Observers can verify updates but **cannot decrypt state**
+- On-chain only stores **commitment + nonce + policy**
+- Real‑time updates via WebSocket subscriptions
+- Observer can verify updates but **cannot decrypt**
 
-### Prerequisites
-- Solana CLI configured
-- Node.js + ts-node
-
-### Install dependencies
+### Install deps
 ```bash
-npm install @coral-xyz/anchor @solana/web3.js
-npm install -D ts-node typescript
+npm i @coral-xyz/anchor @solana/web3.js
+npm i -D ts-node typescript
 ```
 
-### Run (Devnet)
+### Run (devnet)
 ```bash
 export PST_PROGRAM_ID=<deployed_program_id>
 export SOLANA_RPC_URL=https://api.devnet.solana.com
 
-# Terminal 1
+# terminal 1
 npx ts-node scripts/init.ts
 
-# Terminal 2
+# terminal 2
 TS_NODE_CACHE=false npx ts-node scripts/watch.ts
 
-# Terminal 3
+# terminal 3
 npx ts-node scripts/inc.ts
 npx ts-node scripts/inc.ts
 
-# Optional observer (no key)
+# optional observer (no key)
 TS_NODE_CACHE=false npx ts-node scripts/observer.ts
 ```
 
-### Inspect local state
+### Policy selection
+```bash
+# strict (default)
+POLICY=strict npx ts-node scripts/init.ts
+
+# allow_skips
+POLICY=allow_skips npx ts-node scripts/init.ts
+
+# demo skip in allow_skips mode
+npx ts-node scripts/inc.ts --skip 3
+```
+
+### Inspect pending vs committed
 ```bash
 ls state
 cat state/state.pending.json
 cat state/state.committed.json
 ```
 
-Expected behavior:
-- `state.pending.json` appears immediately on update
-- `state.committed.json` updates only after confirmation
+You should see:
+- `state.pending.json` appear immediately on `inc.ts` start
+- `state.committed.json` update only after confirmation
+
+---
+
+## Demo: CPI consumer (composability)
+
+This demo proves **any program can gate actions** using PST without decrypting.
+
+```bash
+export PST_PROGRAM_ID=<deployed_pst_id>
+export PST_CONSUMER_PROGRAM_ID=<deployed_consumer_id>
+export SOLANA_RPC_URL=https://api.devnet.solana.com
+
+npx ts-node scripts/consumer_demo.ts
+```
+
+Flow:
+1. Initializes a PST private counter
+2. Initializes a consumer program referencing that PST account
+3. Calls `gated_action` with expected commitment/nonce (succeeds)
+4. Updates PST
+5. Calls `gated_action` again with new expected values (succeeds)
 
 ---
 
 ## SDK highlights
-
 - AES‑256‑GCM encryption helpers
-- Commitment hash: `sha256(nonce || payload)`
-- Manual account decoding (skip discriminator, parse u64 LE)
-- WebSocket subscription utilities
-- No indexer required
-
----
-
-## How other programs use PST
-
-A Solana program can store a **Pubkey reference** to a `PrivateState` account instead of storing plaintext state.
-
-The program:
-- checks authority and nonce
-- enforces ordering
-- proceeds without ever reading private data
-
-Example use cases:
-- Private game state
-- Private reputation scores
-- Private DAO voting weight
+- Commitment hash = `sha256(nonce || payload)`
+- Manual account decoding (skip discriminator, parse u64 LE, policy)
+- `assertState` + `setPolicy` helpers
+- WebSocket subscription helper
 
 ---
 
 ## Why indexers can’t see your data
-
-Indexers (Helius, etc.) only observe:
+Indexers only see:
 - Account authority
-- Commitment hashes
+- Commitment hash
 - Nonce increments
+- Policy byte
 
-They **cannot derive or decrypt** the underlying state without the encryption key.
+They **cannot** derive or decrypt the payload without the key.
 
 ---
 
 ## Honest limitations
-
-- This does **not** provide anonymity
-- Transaction metadata remains visible
-- Payload durability depends on off-chain storage
-- No zk proofs — integrity is commitment-based only
-
-These tradeoffs are intentional for simplicity and developer ergonomics.
+- This is **not anonymity** — observers still see account + update cadence
+- Payload durability depends on your off‑chain storage
+- No zk proofs — integrity is commitment‑based only
 
 ---
 
 ## Project structure
-```text
+```
 programs/private_state_toolkit/src/lib.rs
+programs/pst_consumer/src/lib.rs
 sdk/index.ts
 scripts/init.ts
 scripts/inc.ts
 scripts/watch.ts
 scripts/observer.ts
+scripts/consumer_demo.ts
 scripts/fs_atomic.ts
 README.md
 ```
@@ -220,6 +237,4 @@ README.md
 ---
 
 ## Hackathon pitch (one‑liner)
-
-**Private State Toolkit makes privacy practical on Solana:  
-verifiable updates on-chain, encrypted data off-chain, zero zk complexity.**
+**PST makes private state easy on Solana: verifiable updates on‑chain, encrypted data off‑chain, zero zk complexity, and composable CPI validation.**

@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "programs/private_state_toolkit",
+  "programs/pst_consumer",
 ]
 
 [profile.release]

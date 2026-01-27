@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import {
+  UpdatePolicy,
   commitment,
   decryptPayload,
   encryptPayload,
@@ -16,6 +17,7 @@ type CommittedState = {
   statePubkey: string;
   nonce: string;
   commitmentHex: string;
+  policy: number;
   payload: {
     ivHex: string;
     ciphertextHex: string;
@@ -64,6 +66,18 @@ function payloadToPacked(payload: CommittedState["payload"]): Buffer {
   return Buffer.concat([iv, tag, ciphertext]);
 }
 
+function parseSkipArg(): bigint {
+  const argv = process.argv.slice(2);
+  const idx = argv.findIndex((arg) => arg === "--skip");
+  if (idx === -1) return 0n;
+  const raw = argv[idx + 1];
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("Invalid --skip value; expected a non-negative number.");
+  }
+  return BigInt(parsed);
+}
+
 async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
   const connection = new Connection(rpcUrl, "confirmed");
@@ -95,6 +109,7 @@ async function main() {
 
   const chainNonce = onchain.nonce;
   const chainCommitmentHex = onchain.commitment.toString("hex");
+  const chainPolicy = onchain.policy;
   if (
     chainNonce.toString() !== committed.nonce ||
     chainCommitmentHex !== committed.commitmentHex
@@ -108,6 +123,12 @@ async function main() {
     return;
   }
 
+  if (chainPolicy !== committed.policy) {
+    const synced: CommittedState = { ...committed, policy: chainPolicy };
+    await writeJsonAtomic(COMMITTED_PATH, synced);
+    console.log("POLICY_SYNC");
+  }
+
   const plaintext = decryptPayload(encryptionKey, packedPayload);
   const decoded = JSON.parse(plaintext.toString("utf8")) as { counter: number };
   const nextCounter = decoded.counter + 1;
@@ -118,7 +139,13 @@ async function main() {
     nextPayload
   );
 
-  const nextNonce = chainNonce + 1n;
+  const skip = parseSkipArg();
+  const policy = chainPolicy as UpdatePolicy;
+  if (skip > 0n && policy !== UpdatePolicy.AllowSkips) {
+    throw new Error("Policy is strict; --skip is not allowed.");
+  }
+
+  const nextNonce = chainNonce + 1n + skip;
   const newCommitment = commitment(nextNonce, nextPacked);
 
   const pending: PendingState = {
@@ -141,14 +168,20 @@ async function main() {
 
   let sig = "";
   try {
-    sig = await updatePrivateState({
-      connection,
-      authority,
-      privateState,
-      oldCommitment: onchain.commitment,
-      newCommitment,
-      nextNonce,
-    });
+    try {
+      sig = await updatePrivateState({
+        connection,
+        authority,
+        privateState,
+        oldCommitment: onchain.commitment,
+        newCommitment,
+        nextNonce,
+      });
+    } catch (err) {
+      const policyLabel = policy === UpdatePolicy.StrictSequential ? "strict" : "allow_skips";
+      console.error(`UPDATE_FAILED policy=${policyLabel}`);
+      throw err;
+    }
 
     await writeJsonAtomic(PENDING_PATH, { ...pending, txSig: sig });
 
@@ -162,6 +195,7 @@ async function main() {
       statePubkey: committed.statePubkey,
       nonce: nextNonce.toString(),
       commitmentHex: newCommitment.toString("hex"),
+      policy,
       payload: {
         ivHex: newPayload.iv.toString("hex"),
         ciphertextHex: newPayload.ciphertext.toString("hex"),

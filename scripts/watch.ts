@@ -9,6 +9,7 @@ type CommittedState = {
   statePubkey: string;
   nonce: string;
   commitmentHex: string;
+  policy: number;
   payload: {
     ivHex: string;
     ciphertextHex: string;
@@ -40,6 +41,7 @@ type DemoKey = {
 type ChainState = {
   nonce: bigint;
   commitmentHex: string;
+  policy: number;
   authority: string;
 };
 
@@ -52,7 +54,8 @@ function decodeAccount(data: Buffer): ChainState {
   const authority = new PublicKey(data.subarray(8, 40)).toBase58();
   const commitmentHex = Buffer.from(data.subarray(40, 72)).toString("hex");
   const nonce = data.readBigUInt64LE(72);
-  return { nonce, commitmentHex, authority };
+  const policy = data.readUInt8(80);
+  return { nonce, commitmentHex, policy, authority };
 }
 
 function payloadToPacked(payload: CommittedState["payload"]): Buffer {
@@ -79,7 +82,8 @@ async function render(chain: ChainState | null) {
   const committedNonce = BigInt(committed.nonce);
   const chainMatchesCommitted =
     chain.nonce === committedNonce &&
-    chain.commitmentHex === committed.commitmentHex;
+    chain.commitmentHex === committed.commitmentHex &&
+    chain.policy === committed.policy;
 
   const pendingMatchesChain =
     pending &&
@@ -97,11 +101,13 @@ async function render(chain: ChainState | null) {
     status = "IN_SYNC";
   } else if (
     chain.nonce > committedNonce ||
-    chain.commitmentHex !== committed.commitmentHex
+    chain.commitmentHex !== committed.commitmentHex ||
+    chain.policy !== committed.policy
   ) {
     status = "STALE";
   }
 
+  const policyLabel = chain.policy === 0 ? "strict" : "allow_skips";
   console.log(
     "STATUS:",
     status,
@@ -109,11 +115,23 @@ async function render(chain: ChainState | null) {
     chain.nonce.toString(),
     "chain_commitment",
     chain.commitmentHex.slice(0, 12),
+    "policy",
+    policyLabel,
     "local_nonce",
     committed.nonce,
     "local_commitment",
     committed.commitmentHex.slice(0, 12)
   );
+
+  if (
+    chain.nonce === committedNonce &&
+    chain.commitmentHex === committed.commitmentHex &&
+    chain.policy !== committed.policy
+  ) {
+    const synced: CommittedState = { ...committed, policy: chain.policy };
+    await writeJsonAtomic(COMMITTED_PATH, synced);
+    console.log("SYNCED policy to chain");
+  }
 
   if (status === "LANDED_PENDING" && pending) {
     const promoted: CommittedState = {
@@ -121,6 +139,7 @@ async function render(chain: ChainState | null) {
       statePubkey: committed.statePubkey,
       nonce: pending.toNonce,
       commitmentHex: pending.newCommitmentHex,
+      policy: chain.policy,
       payload: pending.newPayload,
     };
     await writeJsonAtomic(COMMITTED_PATH, promoted);

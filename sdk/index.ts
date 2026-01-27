@@ -13,6 +13,8 @@ const DISCRIMINATOR = {
   initialize: Buffer.from([175, 175, 109, 31, 13, 152, 155, 237]),
   update: Buffer.from([219, 200, 88, 176, 158, 63, 253, 127]),
   transferAuthority: Buffer.from([35, 150, 249, 253, 241, 46, 101, 64]),
+  assertState: Buffer.from([38, 168, 44, 85, 125, 248, 167, 163]),
+  setPolicy: Buffer.from([49, 72, 252, 13, 103, 119, 4, 236]),
 };
 
 export function getProgramId(): PublicKey {
@@ -36,6 +38,11 @@ export type EncryptedPayload = {
   tag: Buffer;
   ciphertext: Buffer;
 };
+
+export enum UpdatePolicy {
+  StrictSequential = 0,
+  AllowSkips = 1,
+}
 
 export function encryptPayload(
   key: Buffer,
@@ -72,6 +79,7 @@ export async function initPrivateState(params: {
   authority: Keypair;
   privateState: Keypair;
   initialCommitment: Buffer;
+  policy: UpdatePolicy;
 }): Promise<string> {
   const ix = new TransactionInstruction({
     programId: getProgramId(),
@@ -87,6 +95,7 @@ export async function initPrivateState(params: {
     data: Buffer.concat([
       DISCRIMINATOR.initialize,
       params.initialCommitment,
+      Buffer.from([params.policy]),
     ]),
   });
   const tx = new Transaction().add(ix);
@@ -123,10 +132,54 @@ export async function updatePrivateState(params: {
   return sendAndConfirmTransaction(params.connection, tx, [params.authority]);
 }
 
+export async function setPolicy(params: {
+  connection: Connection;
+  authority: Keypair;
+  privateState: PublicKey;
+  policy: UpdatePolicy;
+}): Promise<string> {
+  const ix = new TransactionInstruction({
+    programId: getProgramId(),
+    keys: [
+      { pubkey: params.privateState, isSigner: false, isWritable: true },
+      { pubkey: params.authority.publicKey, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.concat([
+      DISCRIMINATOR.setPolicy,
+      Buffer.from([params.policy]),
+    ]),
+  });
+  const tx = new Transaction().add(ix);
+  return sendAndConfirmTransaction(params.connection, tx, [params.authority]);
+}
+
+export async function assertState(params: {
+  connection: Connection;
+  payer: Keypair;
+  privateState: PublicKey;
+  expectedCommitment: Buffer;
+  expectedNonce: bigint;
+}): Promise<string> {
+  const nonceBuf = Buffer.alloc(8);
+  nonceBuf.writeBigUInt64LE(params.expectedNonce);
+  const ix = new TransactionInstruction({
+    programId: getProgramId(),
+    keys: [{ pubkey: params.privateState, isSigner: false, isWritable: false }],
+    data: Buffer.concat([
+      DISCRIMINATOR.assertState,
+      params.expectedCommitment,
+      nonceBuf,
+    ]),
+  });
+  const tx = new Transaction().add(ix);
+  return sendAndConfirmTransaction(params.connection, tx, [params.payer]);
+}
+
 export type PrivateStateAccount = {
   authority: PublicKey;
   commitment: Buffer;
   nonce: bigint;
+  policy: UpdatePolicy;
 };
 
 export function decodePrivateState(data: Buffer): PrivateStateAccount {
@@ -134,7 +187,8 @@ export function decodePrivateState(data: Buffer): PrivateStateAccount {
   const authority = new PublicKey(data.subarray(offset, offset + 32));
   const commitmentBuf = data.subarray(offset + 32, offset + 64);
   const nonce = data.readBigUInt64LE(offset + 64);
-  return { authority, commitment: Buffer.from(commitmentBuf), nonce };
+  const policy = data.readUInt8(offset + 72) as UpdatePolicy;
+  return { authority, commitment: Buffer.from(commitmentBuf), nonce, policy };
 }
 
 export async function readOnchainState(

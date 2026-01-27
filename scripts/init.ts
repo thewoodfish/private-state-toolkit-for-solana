@@ -3,7 +3,12 @@ import { randomBytes } from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { commitment, encryptPayload, initPrivateState } from "../sdk/index";
+import {
+  UpdatePolicy,
+  commitment,
+  encryptPayload,
+  initPrivateState,
+} from "../sdk/index";
 import { writeJsonAtomic } from "./fs_atomic";
 
 type CommittedState = {
@@ -11,6 +16,7 @@ type CommittedState = {
   statePubkey: string;
   nonce: string;
   commitmentHex: string;
+  policy: number;
   payload: {
     ivHex: string;
     ciphertextHex: string;
@@ -27,6 +33,20 @@ const STATE_DIR = path.join(process.cwd(), "state");
 const COMMITTED_PATH = path.join(STATE_DIR, "state.committed.json");
 const DEMO_KEY_PATH = path.join(process.cwd(), "demo-key.json");
 
+function parsePolicy(): UpdatePolicy {
+  const argv = process.argv.slice(2);
+  const idx = argv.findIndex((arg) => arg === "--policy");
+  const raw =
+    (idx >= 0 ? argv[idx + 1] : undefined) ||
+    process.env.POLICY ||
+    "strict";
+  const normalized = raw.toLowerCase();
+  if (normalized === "allow_skips" || normalized === "allow" || normalized === "skips") {
+    return UpdatePolicy.AllowSkips;
+  }
+  return UpdatePolicy.StrictSequential;
+}
+
 function loadAuthorityKeypair(): Keypair {
   const keypairPath =
     process.env.PST_AUTHORITY_KEYPAIR ||
@@ -39,6 +59,7 @@ async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
   const connection = new Connection(rpcUrl, "confirmed");
   const authority = loadAuthorityKeypair();
+  const policy = parsePolicy();
 
   const privateState = Keypair.generate();
   const encryptionKey = randomBytes(32);
@@ -53,6 +74,7 @@ async function main() {
     authority,
     privateState,
     initialCommitment: commit,
+    policy,
   });
 
   const committed: CommittedState = {
@@ -60,6 +82,7 @@ async function main() {
     statePubkey: privateState.publicKey.toBase58(),
     nonce: nonce.toString(),
     commitmentHex: commit.toString("hex"),
+    policy,
     payload: {
       ivHex: payload.iv.toString("hex"),
       ciphertextHex: payload.ciphertext.toString("hex"),
@@ -78,6 +101,7 @@ async function main() {
   console.log("Initialized Private State");
   console.log("Signature:", sig);
   console.log("State account:", privateState.publicKey.toBase58());
+  console.log("Policy:", policy === UpdatePolicy.StrictSequential ? "strict" : "allow_skips");
   console.log("Saved:", COMMITTED_PATH);
   console.log("Key:", DEMO_KEY_PATH);
 }

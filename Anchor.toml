@@ -4,9 +4,11 @@ skip-lint = false
 
 [programs.devnet]
 private_state_toolkit = "4FeUYtneSbfieLwjUT1ceHtv8nDXFk2autCZFyDhpkeD"
+pst_consumer = "BxqCdUzNrMifua7Rd3qQSqgd4oyTzdcTqH1tbYuvi5bf"
 
 [programs.testnet]
 private_state_toolkit = "4FeUYtneSbfieLwjUT1ceHtv8nDXFk2autCZFyDhpkeD"
+pst_consumer = "BxqCdUzNrMifua7Rd3qQSqgd4oyTzdcTqH1tbYuvi5bf"
 
 [registry]
 url = "https://api.apr.dev"
