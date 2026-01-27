@@ -36,7 +36,7 @@ Everyone can verify ordering and consistency — **no one sees the payload** wit
 
 ---
 
-## Upgrade A — Composability via CPI (assert_state)
+## Composability via CPI (assert_state)
 
 PST now exposes a **CPI‑friendly validation hook**:
 
@@ -72,7 +72,7 @@ This lets any program gate actions on **fresh private state** without decrypting
 
 ---
 
-## Upgrade B — Update policies
+## Update policies
 
 PST supports two minimal, real update policies:
 
@@ -114,7 +114,7 @@ This avoids “sleep and retry” hacks and works reliably under websocket lag.
 
 ---
 
-## Demo: Private Counter (mandatory)
+## Demo: Private Counter 
 
 **What it proves**
 - Counter value is **encrypted locally**
@@ -267,5 +267,4 @@ README.md
 
 ---
 
-## Hackathon pitch (one‑liner)
 **PST makes private state easy on Solana: verifiable updates on‑chain, encrypted data off‑chain, zero zk complexity, and composable CPI validation.**
