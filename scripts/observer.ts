@@ -1,3 +1,4 @@
+// Observer: same sync status as watch.ts, without decryption.
 import { Connection, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
@@ -42,6 +43,7 @@ function decodeAccount(data: Buffer): ChainState {
 }
 
 async function render(chain: ChainState | null) {
+  // Read committed/pending for sync status (no keys required).
   const committed = await readJsonIfExists<CommittedState>(COMMITTED_PATH);
   const pending = await readJsonIfExists<PendingState>(PENDING_PATH);
 

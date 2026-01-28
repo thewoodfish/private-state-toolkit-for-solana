@@ -1,3 +1,4 @@
+// Demo init: create PST state, encrypt counter=0, write committed state + demo key.
 import { Connection, Keypair } from "@solana/web3.js";
 import { randomBytes } from "crypto";
 import fs from "fs";
@@ -33,6 +34,7 @@ const STATE_DIR = path.join(process.cwd(), "state");
 const COMMITTED_PATH = path.join(STATE_DIR, "state.committed.json");
 const DEMO_KEY_PATH = path.join(process.cwd(), "demo-key.json");
 
+// Parse policy from CLI/env (default strict).
 function parsePolicy(): UpdatePolicy {
   const argv = process.argv.slice(2);
   const idx = argv.findIndex((arg) => arg === "--policy");
@@ -61,9 +63,11 @@ async function main() {
   const authority = loadAuthorityKeypair();
   const policy = parsePolicy();
 
+  // Fresh, non-PDA state account.
   const privateState = Keypair.generate();
   const encryptionKey = randomBytes(32);
 
+  // Encrypt initial payload and compute commitment at nonce 0.
   const counterState = Buffer.from(JSON.stringify({ counter: 0 }));
   const { payload, packed } = encryptPayload(encryptionKey, counterState);
   const nonce = 0n;

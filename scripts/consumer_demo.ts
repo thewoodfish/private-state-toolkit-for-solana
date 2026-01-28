@@ -1,3 +1,4 @@
+// CPI demo: pst_consumer gates action by calling PST assert_state.
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { randomBytes } from "crypto";
 import fs from "fs";
@@ -92,6 +93,7 @@ function payloadToPacked(payload: CommittedState["payload"]): Buffer {
   return Buffer.concat([iv, tag, ciphertext]);
 }
 
+// Initialize consumer program account with a PST state reference.
 async function initializeConsumerAccount(params: {
   connection: Connection;
   authority: Keypair;
@@ -117,6 +119,7 @@ async function initializeConsumerAccount(params: {
   ]);
 }
 
+// CPI into PST assert_state and increment consumer count if valid.
 async function gatedAction(params: {
   connection: Connection;
   authority: Keypair;
@@ -155,6 +158,7 @@ async function main() {
   const authority = loadAuthorityKeypair();
   const policy = parsePolicy();
 
+  // 1) Initialize PST private counter.
   console.log("Initializing PST state...");
   const privateState = Keypair.generate();
   const encryptionKey = randomBytes(32);
@@ -196,6 +200,7 @@ async function main() {
   console.log("PST init sig:", initSig);
   console.log("PST state:", privateState.publicKey.toBase58());
 
+  // 2) Initialize consumer account that references PST state.
   console.log("Initializing consumer program...");
   const consumer = Keypair.generate();
   const consumerSig = await initializeConsumerAccount({
@@ -210,6 +215,7 @@ async function main() {
   const chain = await readOnchainState(connection, privateState.publicKey);
   if (!chain) throw new Error("Missing PST state on-chain.");
 
+  // 3) Gate action with current commitment/nonce (should succeed).
   console.log("Calling gated_action with current commitment/nonce...");
   const gateSig1 = await gatedAction({
     connection,
@@ -221,6 +227,7 @@ async function main() {
   });
   console.log("gated_action sig:", gateSig1);
 
+  // 4) Update PST state and call gated_action again.
   console.log("Updating PST state...");
   const keyFile = await readJsonIfExists<DemoKey>(DEMO_KEY_PATH);
   if (!keyFile) throw new Error("Missing demo-key.json");

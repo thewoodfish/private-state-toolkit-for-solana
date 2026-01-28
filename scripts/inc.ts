@@ -1,3 +1,4 @@
+// Demo increment: stage pending update, submit tx, promote on confirmation.
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
@@ -66,6 +67,7 @@ function payloadToPacked(payload: CommittedState["payload"]): Buffer {
   return Buffer.concat([iv, tag, ciphertext]);
 }
 
+// Optional skip for AllowSkips policy demo.
 function parseSkipArg(): bigint {
   const argv = process.argv.slice(2);
   const idx = argv.findIndex((arg) => arg === "--skip");
@@ -83,6 +85,7 @@ async function main() {
   const connection = new Connection(rpcUrl, "confirmed");
   const authority = loadAuthorityKeypair();
 
+  // Load committed state (local source of truth).
   const committed = await readJsonIfExists<CommittedState>(COMMITTED_PATH);
   if (!committed) {
     throw new Error("Run init first (missing state.committed.json).");
@@ -102,6 +105,7 @@ async function main() {
   const encryptionKey = Buffer.from(keyFile.keyBase64, "base64");
   const packedPayload = payloadToPacked(committed.payload);
 
+  // Chain is the source of truth for versioning.
   const onchain = await readOnchainState(connection, privateState);
   if (!onchain) {
     throw new Error("On-chain state not found.");
@@ -129,6 +133,7 @@ async function main() {
     console.log("POLICY_SYNC");
   }
 
+  // Decrypt, increment, re-encrypt, compute new commitment.
   const plaintext = decryptPayload(encryptionKey, packedPayload);
   const decoded = JSON.parse(plaintext.toString("utf8")) as { counter: number };
   const nextCounter = decoded.counter + 1;

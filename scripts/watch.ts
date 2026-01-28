@@ -1,3 +1,4 @@
+// Demo watcher: show sync status by comparing chain vs committed/pending.
 import { Connection, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
@@ -66,6 +67,7 @@ function payloadToPacked(payload: CommittedState["payload"]): Buffer {
 }
 
 async function render(chain: ChainState | null) {
+  // Read local committed/pending and determine sync status.
   const committed = await readJsonIfExists<CommittedState>(COMMITTED_PATH);
   const pending = await readJsonIfExists<PendingState>(PENDING_PATH);
   const keyFile = await readJsonIfExists<DemoKey>(DEMO_KEY_PATH);
@@ -133,6 +135,7 @@ async function render(chain: ChainState | null) {
     console.log("SYNCED policy to chain");
   }
 
+  // Auto-promote if pending landed on-chain.
   if (status === "LANDED_PENDING" && pending) {
     const promoted: CommittedState = {
       version: 1,
@@ -147,6 +150,7 @@ async function render(chain: ChainState | null) {
     console.log("PROMOTED pending -> committed");
   }
 
+  // Optional decryption if demo key exists.
   if (keyFile) {
     const packed = payloadToPacked(committed.payload);
     const key = Buffer.from(keyFile.keyBase64, "base64");
