@@ -1,6 +1,6 @@
 # Private State Toolkit (PST)
 
-[![npm version](https://badge.fury.io/js/%40thewoodfish%2Fprivate-state-toolkit.svg)](https://www.npmjs.com/package/@thewoodfish/private-state-toolkit)
+[![npm version](https://badge.fury.io/js/solana-private-state-toolkit.svg)](https://www.npmjs.com/package/solana-private-state-toolkit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Private State Toolkit is **privacy infrastructure for Solana programs**. It enables **private but verifiable application state without zk** by storing only cryptographic commitments on-chain and keeping encrypted state off-chain. This is **not** a private payments app — it's a reusable primitive for builders.
@@ -10,12 +10,12 @@ Private State Toolkit is **privacy infrastructure for Solana programs**. It enab
 ## Installation
 
 ```bash
-npm install @thewoodfish/private-state-toolkit
+npm install solana-private-state-toolkit
 ```
 
 Or with yarn:
 ```bash
-yarn add @thewoodfish/private-state-toolkit
+yarn add solana-private-state-toolkit
 ```
 
 ---
@@ -57,7 +57,7 @@ Everyone can verify ordering and consistency — **no one sees the payload** wit
 ### 1. Install the SDK
 
 ```bash
-npm install @thewoodfish/private-state-toolkit
+npm install solana-private-state-toolkit
 ```
 
 ### 2. Set up environment
@@ -71,7 +71,7 @@ PST_PROGRAM_ID=4FeUYtneSbfieLwjUT1ceHtv8nDXFk2autCZFyDhpkeD
 
 ```typescript
 import { Connection, Keypair } from "@solana/web3.js";
-import { initPrivateState, encryptPayload, UpdatePolicy } from "@thewoodfish/private-state-toolkit";
+import { initPrivateState, encryptPayload, UpdatePolicy } from "solana-private-state-toolkit";
 
 const connection = new Connection("https://api.devnet.solana.com");
 const payer = Keypair.generate(); // Your wallet keypair
@@ -97,7 +97,7 @@ console.log("PST account created:", statePubkey.toBase58());
 ### 4. Update private state
 
 ```typescript
-import { updatePrivateState, commitment } from "@thewoodfish/private-state-toolkit";
+import { updatePrivateState, commitment } from "solana-private-state-toolkit";
 
 // Update your state
 const newState = { counter: 1, gameState: "active" };
