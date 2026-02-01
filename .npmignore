@@ -1,0 +1,32 @@
+# Exclude from NPM package
+
+# Anchor/Solana program files (users will use deployed programs)
+programs/
+target/
+Anchor.toml
+
+# Development files
+scripts/
+tests/
+state/
+video-materials/
+*.log
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Environment
+.env
+.env.*
+demo-key.json
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation that's not needed in package
+DEMO_VIDEO_SCRIPT.md

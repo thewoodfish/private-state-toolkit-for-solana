@@ -1,4 +1,5 @@
 // Demo watcher: show sync status by comparing chain vs committed/pending.
+import "./env"; // Load environment variables
 import { Connection, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";

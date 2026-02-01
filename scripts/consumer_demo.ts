@@ -1,4 +1,5 @@
 // CPI demo: pst_consumer gates action by calling PST assert_state.
+import "./env"; // Load environment variables
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { randomBytes } from "crypto";
 import fs from "fs";

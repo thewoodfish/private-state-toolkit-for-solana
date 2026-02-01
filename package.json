@@ -1,20 +1,40 @@
 {
-  "name": "private-state-toolkit-for-solana",
-  "version": "1.0.0",
-  "description": "Private State Toolkit is Solana infrastructure for **private but verifiable state** without zk. It stores only a cryptographic commitment on-chain while the actual application state stays encrypted off-chain. This is a developer primitive other programs can build on, not a private payments app.",
-  "main": "index.js",
+  "name": "solana-private-state-toolkit",
+  "version": "0.1.0",
+  "description": "Privacy infrastructure for Solana: private but verifiable state using cryptographic commitments without zero-knowledge proofs. Build apps with encrypted off-chain state and 81-byte on-chain commitments.",
+  "main": "sdk/index.js",
+  "types": "sdk/index.d.ts",
+  "files": [
+    "sdk/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "anchor test",
     "build": "anchor build",
-    "deploy": "anchor deploy"
+    "build:sdk": "tsc sdk/index.ts --declaration --outDir sdk",
+    "deploy": "anchor deploy",
+    "prepublishOnly": "npm run build:sdk"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/thewoodfish/private-state-toolkit-for-solana.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "solana",
+    "privacy",
+    "blockchain",
+    "encryption",
+    "commitment",
+    "private-state",
+    "cryptography",
+    "web3",
+    "anchor",
+    "composability",
+    "cpi"
+  ],
+  "author": "thewoodfish",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/thewoodfish/private-state-toolkit-for-solana/issues"
@@ -22,7 +42,8 @@
   "homepage": "https://github.com/thewoodfish/private-state-toolkit-for-solana#readme",
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
-    "@solana/web3.js": "^1.98.4"
+    "@solana/web3.js": "^1.98.4",
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@types/chai": "^4.3.5",

@@ -1,4 +1,5 @@
 // Observer: same sync status as watch.ts, without decryption.
+import "./env"; // Load environment variables
 import { Connection, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";

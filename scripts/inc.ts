@@ -1,4 +1,5 @@
 // Demo increment: stage pending update, submit tx, promote on confirmation.
+import "./env"; // Load environment variables
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";

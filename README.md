@@ -1,6 +1,22 @@
 # Private State Toolkit (PST)
 
-Private State Toolkit is **privacy infrastructure for Solana programs**. It enables **private but verifiable application state without zk** by storing only cryptographic commitments on-chain and keeping encrypted state off-chain. This is **not** a private payments app — it’s a reusable primitive for builders.
+[![npm version](https://badge.fury.io/js/%40thewoodfish%2Fprivate-state-toolkit.svg)](https://www.npmjs.com/package/@thewoodfish/private-state-toolkit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Private State Toolkit is **privacy infrastructure for Solana programs**. It enables **private but verifiable application state without zk** by storing only cryptographic commitments on-chain and keeping encrypted state off-chain. This is **not** a private payments app — it's a reusable primitive for builders.
+
+---
+
+## Installation
+
+```bash
+npm install @thewoodfish/private-state-toolkit
+```
+
+Or with yarn:
+```bash
+yarn add @thewoodfish/private-state-toolkit
+```
 
 ---
 
@@ -33,6 +49,112 @@ PST gives you:
    - `nonce` rule obeys policy
 
 Everyone can verify ordering and consistency — **no one sees the payload** without the key.
+
+---
+
+## Quick Start
+
+### 1. Install the SDK
+
+```bash
+npm install @thewoodfish/private-state-toolkit
+```
+
+### 2. Set up environment
+
+```bash
+# .env file
+PST_PROGRAM_ID=4FeUYtneSbfieLwjUT1ceHtv8nDXFk2autCZFyDhpkeD
+```
+
+### 3. Initialize private state
+
+```typescript
+import { Connection, Keypair } from "@solana/web3.js";
+import { initPrivateState, encryptPayload, UpdatePolicy } from "@thewoodfish/private-state-toolkit";
+
+const connection = new Connection("https://api.devnet.solana.com");
+const payer = Keypair.generate(); // Your wallet keypair
+const encryptionKey = Buffer.from("your-32-byte-key"); // Store securely!
+
+// Your app state
+const appState = { counter: 0, gameState: "active" };
+
+// Encrypt and create commitment
+const encrypted = encryptPayload(Buffer.from(JSON.stringify(appState)), encryptionKey);
+
+// Initialize on-chain
+const { statePubkey, signature } = await initPrivateState(
+  connection,
+  payer,
+  encrypted,
+  UpdatePolicy.StrictSequential
+);
+
+console.log("PST account created:", statePubkey.toBase58());
+```
+
+### 4. Update private state
+
+```typescript
+import { updatePrivateState, commitment } from "@thewoodfish/private-state-toolkit";
+
+// Update your state
+const newState = { counter: 1, gameState: "active" };
+const newEncrypted = encryptPayload(Buffer.from(JSON.stringify(newState)), encryptionKey);
+
+// Compute new commitment
+const newCommitment = commitment(newNonce, newEncrypted);
+
+// Submit update
+const sig = await updatePrivateState(
+  connection,
+  payer,
+  statePubkey,
+  oldCommitment,
+  oldNonce,
+  newCommitment,
+  newNonce
+);
+```
+
+### 5. Use in your Solana program (CPI)
+
+```rust
+use anchor_lang::prelude::*;
+use private_state_toolkit::cpi::accounts::AssertState;
+use private_state_toolkit::program::PrivateStateToolkit;
+
+#[derive(Accounts)]
+pub struct ValidatePrivateState<'info> {
+    #[account(mut)]
+    pub private_state: AccountInfo<'info>,
+    pub pst_program: Program<'info, PrivateStateToolkit>,
+}
+
+pub fn my_instruction(
+    ctx: Context<ValidatePrivateState>,
+    expected_commitment: [u8; 32],
+    expected_nonce: u64,
+) -> Result<()> {
+    // Validate private state before executing logic
+    let cpi_ctx = CpiContext::new(
+        ctx.accounts.pst_program.to_account_info(),
+        AssertState {
+            private_state: ctx.accounts.private_state.to_account_info(),
+        },
+    );
+
+    private_state_toolkit::cpi::assert_state(
+        cpi_ctx,
+        expected_commitment,
+        expected_nonce,
+    )?;
+
+    // Your program logic here - state is validated!
+    Ok(())
+}
+```
 
 ---
 

@@ -1,4 +1,5 @@
 // Demo init: create PST state, encrypt counter=0, write committed state + demo key.
+import "./env"; // Load environment variables
 import { Connection, Keypair } from "@solana/web3.js";
 import { randomBytes } from "crypto";
 import fs from "fs";
